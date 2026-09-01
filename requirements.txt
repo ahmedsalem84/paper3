@@ -1,0 +1,48 @@
+# FairPFL — Fairness-Aware Personalized Federated Learning
+# Core dependencies
+
+# Deep Learning
+torch>=2.0,<3.0
+torchvision>=0.15
+
+# Federated Learning (simulation mode includes Ray)
+flwr[simulation]>=1.13,<2.0
+
+# Data Processing
+numpy>=1.24
+pandas>=2.0
+scikit-learn>=1.3
+
+# Class Imbalance
+imbalanced-learn>=0.11
+
+# Visualization
+matplotlib>=3.7
+seaborn>=0.12
+
+# Hyperparameter Optimization
+optuna>=3.3
+
+# Differential Privacy
+opacus>=1.4
+
+# Statistical Analysis
+scipy>=1.11
+
+# STL Decomposition (Paper 1 integration)
+statsmodels>=0.14
+
+# LLM Semantic Enrichment (Paper 2 integration)
+transformers>=4.30
+
+# Configuration
+pyyaml>=6.0
+
+# Progress bars
+tqdm>=4.65
+
+# Experiment tracking (optional)
+# wandb>=0.15
+
+# Kaggle dataset download
+# kaggle>=1.5

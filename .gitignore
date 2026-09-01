@@ -1,0 +1,25 @@
+# Data and large artifacts (kept local, not distributed).
+# The preprocessing CODE under data/ is tracked; the data itself is not.
+data/*
+!data/*.py
+data_edge_iiot/
+results*/
+backups/
+logs*/
+*.log
+
+# Large binaries
+*.npz
+*.npy
+*.pkl
+*.pt
+
+# Archives / backups
+*.zip
+
+# Python / tooling
+__pycache__/
+*.pyc
+venv/
+.obsidian/
+.git/

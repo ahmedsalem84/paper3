@@ -1,0 +1,149 @@
+# FairPFL — Complete Hyperparameter Configuration
+# Paper: "FairPFL: Unified Fairness-Privacy-Personalization Framework for Federated IoT IDS"
+# This file documents the exact configuration used for all paper results.
+
+# ─────────────────────────────────────────────
+# DATASET
+# ─────────────────────────────────────────────
+dataset:
+  name: "CIC-IoT-2023"
+  source: "University of New Brunswick (UNB)"
+  url: "https://www.unb.ca/cic/datasets/iotdataset-2023.html"
+  data_dir: "data/compressed"
+  num_features: 46
+  num_clusters: 9
+  num_classes: 6
+  class_names:
+    - "Benign"
+    - "DDoS"
+    - "DoS"
+    - "Mirai"
+    - "Recon"
+    - "Spoofing"
+  excluded_classes:
+    - "BruteForce"    # DictionaryBruteForce: 9,144 train samples total (min/cluster=273)
+    - "Web-based"     # 6 subtypes: 17,382 train samples total (min/cluster=429)
+  max_samples_per_cluster: 500000
+  exclude_minority: true   # excludes BruteForce/Web-based during loading
+
+# ─────────────────────────────────────────────
+# FEDERATED LEARNING
+# ─────────────────────────────────────────────
+federated:
+  num_rounds: 200             # T — total communication rounds
+  local_epochs: 3             # E — local SGD epochs per round
+  participation_rate: 0.667   # r = 6/9 clusters per round
+  eval_every_n_rounds: 5      # evaluation frequency
+  eval_max_samples: 100000    # max samples for evaluation (speed)
+
+# ─────────────────────────────────────────────
+# TRAINING
+# ─────────────────────────────────────────────
+training:
+  batch_size: 128
+  samples_per_class: 5000     # N_s — stratified subsampling per class per round
+  optimizer_shared: "adam"
+  lr_shared: 0.001
+  optimizer_personal: "sgd"
+  lr_personal: 0.01
+  momentum_personal: 0.9      # SGD momentum for LSTM layers
+  label_smoothing: 0.1        # ε in focal loss label smoothing
+  focal_gamma: 2.0            # γ in focal loss (1-p)^γ log p
+
+# ─────────────────────────────────────────────
+# MODEL ARCHITECTURE
+# ─────────────────────────────────────────────
+model:
+  input_dim: 46
+  lstm_hidden_dim: 128
+  lstm_num_layers: 2          # adaptive depth: 1 or 2 per cluster
+  attention_heads: 4
+  attention_dim: 64
+  num_classes: 6
+  dropout: 0.3
+  # Parameter counts:
+  # Personalized LSTM (depth=1): 90,112 params — on-device, never transmitted
+  # Personalized LSTM (depth=2): 139,776 params — on-device, never transmitted
+  # Shared Attention + Classifier: 19,046 params — server, DP-protected
+
+# ─────────────────────────────────────────────
+# ADAPTIVE FAIRNESS CONTROLLER (Section III-D)
+# ─────────────────────────────────────────────
+fairness_controller:
+  q_init: 1.0       # q₀ — initial fairness exponent
+  q_max: 3.0        # saturation cap (anti-windup)
+  eta: 0.1          # η — adaptation step size
+  delta_1: 0.05     # δ₁ — upper threshold (increase q if ΔF1 > δ₁)
+  delta_2: 0.02     # δ₂ — lower threshold (decrease q if ΔF1 < δ₂)
+  phi_max: null      # φ_max — upper bound on fairness weight ratio (null = no clipping)
+                     # Set to e.g. 27.0 (= q_max^3) to prevent extreme weight concentration
+                     # Paper v20 results use null (no clipping)
+  # Note: η=0.1 > (δ₁-δ₂)=0.03 → bounded oscillation ≤2η=0.2 (see Proposition 2)
+  # This does not affect convergence (Assumption A4 requires only q_t ∈ [0,q_max])
+
+# ─────────────────────────────────────────────
+# PROXIMAL REGULARIZATION (Section III-C)
+# ─────────────────────────────────────────────
+proximal:
+  mu: 0.001         # μ — proximal regularization strength
+  warmup_rounds: 20  # W — proximal disengaged for rounds 1..W (phase-gated)
+  # Cold-start warmup: proximal engaged only at t > W to avoid anchoring to
+  # random initialization (proximal initialization alignment problem)
+
+# ─────────────────────────────────────────────
+# DIFFERENTIAL PRIVACY (Section III-E)
+# ─────────────────────────────────────────────
+differential_privacy:
+  enabled: false      # set true for DP experiments
+  epsilon_per_round: 5.0        # ε_s — per-round budget
+  delta: 0.00001                # δ = 1e-5
+  noise_multiplier: 0.969       # σ_s (calibrated via Eq. 10)
+  max_grad_norm: 1.0            # C_s — clipping norm (shared params)
+  personal_grad_norm: 10.0      # clipping for personal params (no noise)
+  mechanism: "gaussian"         # Gaussian mechanism (Abadi et al. 2016)
+  # Cumulative budget (Rényi DP, autodp):
+  #   ε_total ≈ 224.5  (δ=1e-5, T=200, σ=0.969, r=2/3)
+  # Per-round privacy amplification (partial participation):
+  #   ε'_s ≤ ln(1 + r(e^ε_s - 1)) ≈ 4.60 at r=2/3
+
+# ─────────────────────────────────────────────
+# ADAPTIVE DEPTH (Section III-G)
+# ─────────────────────────────────────────────
+adaptive_depth:
+  method: "js_divergence"  # Jensen-Shannon divergence based assignment
+  depth_options: [1, 2]    # LSTM depth choices
+  update_frequency: 10     # re-evaluate depth every N rounds
+  # Clusters with high JS divergence from global distribution → depth=2 (more personalization)
+  # Clusters with low JS divergence → depth=1 (less personalization)
+
+# ─────────────────────────────────────────────
+# REPRODUCIBILITY
+# ─────────────────────────────────────────────
+reproducibility:
+  seeds: [42, 123, 456]   # three independent seeds for all paper results
+  deterministic: true      # torch.backends.cudnn.deterministic = True
+  # Results by seed:
+  #   seed 42  → Macro-F1 = 0.8648
+  #   seed 123 → Macro-F1 = 0.8667
+  #   seed 456 → Macro-F1 = 0.8709
+  #   Mean ± Std = 0.8675 ± 0.0026
+
+# ─────────────────────────────────────────────
+# ABLATION SCENARIOS
+# ─────────────────────────────────────────────
+ablation_scenarios:
+  A1_no_fairness:
+    description: "Remove adaptive q controller (q=0 fixed)"
+    changes: {q_init: 0.0, q_max: 0.0, eta: 0.0}
+  A2_no_personal:
+    description: "Remove personalization (shared-only model)"
+    changes: {personalized_layers: false}
+  A3_fixed_depth:
+    description: "Remove adaptive depth (depth=1 fixed for all clusters)"
+    changes: {adaptive_depth: false, fixed_depth: 1}
+  A4_no_warmup:
+    description: "Remove phase-gated warmup (proximal from t=1)"
+    changes: {warmup_rounds: 0}
+  A5_no_proximal:
+    description: "Remove proximal regularization (μ=0)"
+    changes: {mu: 0.0}

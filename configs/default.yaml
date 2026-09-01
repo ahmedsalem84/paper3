@@ -1,0 +1,54 @@
+# configs/default.yaml — Default hyperparameters for FairPFL
+# Updated: 19 Apr 2026 — 8-class taxonomy migration
+# NOTE: This YAML is reference-only; main.py uses FL_CONFIG dict directly.
+
+experiment:
+  name: "FairPFL_default"
+  seed: 42
+  results_dir: "results_v2"         # v2 folder (v1 deprecated)
+
+data:
+  raw_dir: "data/wataiData/csv/CICIoT2023"
+  processed_dir: "data/compressed"   # .npz mmap format
+  num_clusters: 9
+  dirichlet_alpha: 0.5               # verified in metadata.json
+  test_size: 0.15
+  val_size: 0.15
+  seq_len: 1                         # flow-level: no temporal order
+  apply_smote: true                  # SMOTE enabled for minority class balancing
+  smote_min_samples: 2000            # minimum samples per class after SMOTE
+  cap_per_class: 50000               # majority class capping threshold
+
+model:
+  input_dim: 46
+  personal_hidden: 128
+  shared_hidden: 64
+  num_classes: 8                     # UNB official 8-class taxonomy
+  num_heads: 4
+  dropout: 0.3
+
+federated:
+  num_rounds: 200                    # 200 for PFL convergence (was 100)
+  local_epochs: 5
+  batch_size: 2048                   # large batch for server GPU
+  lr_personal: 0.001                 # non-DP scenarios
+  lr_shared: 0.001
+  lr_personal_dp: 0.0002             # DP scenarios (Opacus requires lower LR)
+  lr_shared_dp: 0.0002
+  participation_rate: 0.67           # 6/9 clusters per round (was 0.5 → only 4/9)
+  proximal_mu: 0.001                 # FairPFL_noDP: softened from 0.01
+  personal_warmup_rounds: 20         # cold-start fix: no personal proximal first 20 rounds
+  max_samples_per_cluster: 500000    # full data per cluster (was 50000 → overfit)
+  eval_max_samples: 50000            # eval subsample
+
+fairness:
+  q_init: 1.0
+  q_delta: 0.1
+  q_max: 3.0                         # BUG-2 FIX: cap (was unbounded → q=20+ divergence)
+  fairness_delta1: 0.05              # upper F1-gap threshold (increase q)
+  fairness_delta2: 0.02              # lower F1-gap threshold (decrease q)
+
+privacy:
+  epsilon_global: 5.0                # per-round DP for shared params only
+  delta: 1.0e-5
+  clip_norm_shared: 1.0
